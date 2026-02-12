@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  release:
+    types: [ published ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    name: Build release zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install PHP production dependencies
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build block assets
+        run: npm run build
+
+      - name: Build release zip
+        run: |
+          mkdir who-team-manager
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='tests' \
+            --exclude='src' \
+            --exclude='node_modules' \
+            --exclude='phpunit.xml.dist' \
+            --exclude='phpstan.neon.dist' \
+            --exclude='phpstan-bootstrap.php' \
+            --exclude='phpcs.xml.dist' \
+            --exclude='rector.php' \
+            --exclude='composer.json' \
+            --exclude='composer.lock' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            --exclude='.gitignore' \
+            --exclude='.eslintrc.json' \
+            --exclude='vendor/bin' \
+            ./ who-team-manager/
+          zip -r who-team-manager.zip who-team-manager/
+
+      - name: Upload release asset
+        run: gh release upload "${{ github.event.release.tag_name }}" who-team-manager.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

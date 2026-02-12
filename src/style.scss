@@ -1,0 +1,76 @@
+/**
+ * Frontend styles for the Team Grid block.
+ *
+ * Minimal CSS — relies on theme styles where possible.
+ *
+ * @package WhoTeamManager
+ */
+
+.who-team-grid {
+	display: grid;
+	grid-template-columns: repeat(var(--who-team-columns, 3), 1fr);
+	gap: 1.5em;
+}
+
+.who-team-member {
+	display: flex;
+	flex-direction: column;
+}
+
+.who-team-member__image img {
+	display: block;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 3 / 4;
+	object-fit: cover;
+}
+
+.who-team-member__photo-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	aspect-ratio: 3 / 4;
+	background: #f0f0f0;
+	color: #757575;
+	font-size: 0.875em;
+}
+
+.who-team-member__info {
+	padding: 0.75em 0;
+}
+
+.who-team-member__name {
+	margin: 0 0 0.15em;
+}
+
+.who-team-member__title {
+	margin: 0 0 0.5em;
+	opacity: 0.7;
+	font-weight: 600;
+}
+
+.who-team-member__description {
+	font-size: 0.875em;
+}
+
+.who-team-member__description p:first-child {
+	margin-top: 0;
+}
+
+.who-team-member__description p:last-child {
+	margin-bottom: 0;
+}
+
+/* Responsive: collapse columns on smaller screens. */
+@media (max-width: 781px) {
+	.who-team-grid {
+		grid-template-columns: repeat(min(var(--who-team-columns, 3), 2), 1fr);
+	}
+}
+
+@media (max-width: 480px) {
+	.who-team-grid {
+		grid-template-columns: 1fr;
+	}
+}

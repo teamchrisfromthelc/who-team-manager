@@ -1,0 +1,33 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "who-team-manager/team-grid",
+	"version": "1.0.0",
+	"title": "Team Grid",
+	"category": "widgets",
+	"icon": "groups",
+	"description": "Display a grid of team members with drag-and-drop ordering.",
+	"keywords": [ "team", "members", "grid", "staff", "people" ],
+	"supports": {
+		"html": false,
+		"align": [ "wide", "full" ]
+	},
+	"attributes": {
+		"columns": {
+			"type": "number",
+			"default": 3
+		},
+		"memberIds": {
+			"type": "array",
+			"default": [],
+			"items": {
+				"type": "number"
+			}
+		}
+	},
+	"textdomain": "who-team-manager",
+	"editorScript": "file:./index.js",
+	"editorStyle": "file:./index.css",
+	"style": "file:./style-index.css",
+	"render": null
+}

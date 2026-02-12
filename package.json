@@ -1,0 +1,32 @@
+{
+	"name": "who-team-manager",
+	"version": "1.0.0",
+	"description": "A simple custom post type for team members with a configurable grid block.",
+	"author": "Christopher Smith",
+	"license": "MIT",
+	"private": true,
+	"scripts": {
+		"build": "wp-scripts build",
+		"start": "wp-scripts start",
+		"test:js": "wp-scripts test-unit-js --config jest.config.js",
+		"test:js:watch": "wp-scripts test-unit-js --config jest.config.js --watch",
+		"lint:js": "wp-scripts lint-js src/",
+		"lint:css": "wp-scripts lint-style src/",
+		"format": "wp-scripts format src/"
+	},
+	"devDependencies": {
+		"@dnd-kit/core": "^6.1.0",
+		"@dnd-kit/modifiers": "^7.0.0",
+		"@dnd-kit/sortable": "^8.0.0",
+		"@dnd-kit/utilities": "^3.2.2",
+		"@testing-library/jest-dom": "^6.0.0",
+		"@testing-library/react": "^14.0.0",
+		"@wordpress/scripts": "^30.0.0"
+	},
+	"dependencies": {
+		"@dnd-kit/core": "^6.1.0",
+		"@dnd-kit/modifiers": "^7.0.0",
+		"@dnd-kit/sortable": "^8.0.0",
+		"@dnd-kit/utilities": "^3.2.2"
+	}
+}
