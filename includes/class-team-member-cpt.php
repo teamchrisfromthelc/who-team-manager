@@ -96,7 +96,7 @@ class Team_Member_CPT {
 
 		add_action(
 			'enqueue_block_editor_assets',
-			function () {
+			function (): void {
 				$screen = get_current_screen();
 
 				if ( $screen && self::POST_TYPE === $screen->post_type ) {

@@ -78,16 +78,22 @@ class Team_Grid_Block {
 			$member_id = absint( $member_id );
 			$post      = get_post( $member_id );
 
-			if ( ! $post || Team_Member_CPT::POST_TYPE !== $post->post_type || 'publish' !== $post->post_status ) {
+			if ( ! $post ) {
+				continue;
+			}
+
+			if ( Team_Member_CPT::POST_TYPE !== $post->post_type ) {
+				continue;
+			}
+
+			if ( 'publish' !== $post->post_status ) {
 				continue;
 			}
 
 			$output .= $this->render_member_card( $post );
 		}
 
-		$output .= '</div>';
-
-		return $output;
+		return $output . '</div>';
 	}
 
 	/**
@@ -97,8 +103,9 @@ class Team_Grid_Block {
 	 * @return string Card HTML.
 	 */
 	private function render_member_card( \WP_Post $post ): string {
-		$name        = esc_html( get_the_title( $post ) );
-		$job_title   = esc_html( get_post_meta( $post->ID, Team_Member_CPT::META_JOB_TITLE, true ) );
+		$name      = esc_html( get_the_title( $post ) );
+		$job_title = esc_html( get_post_meta( $post->ID, Team_Member_CPT::META_JOB_TITLE, true ) );
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter.
 		$description = wp_kses_post( apply_filters( 'the_content', $post->post_content ) );
 		$photo       = get_the_post_thumbnail(
 			$post,
@@ -120,8 +127,7 @@ class Team_Grid_Block {
 		}
 
 		$card .= '</div>';
-		$card .= '</div>';
 
-		return $card;
+		return $card . '</div>';
 	}
 }

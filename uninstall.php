@@ -14,7 +14,7 @@ delete_transient( 'wtm_github_update' );
 delete_transient( 'wtm_github_update_failed' );
 
 // Delete all team member posts and their meta.
-$posts = get_posts(
+$who_team_manager_posts = get_posts(
 	array(
 		'post_type'      => 'who_team_member',
 		'posts_per_page' => -1,
@@ -23,6 +23,6 @@ $posts = get_posts(
 	)
 );
 
-foreach ( $posts as $post_id ) {
-	wp_delete_post( $post_id, true );
+foreach ( $who_team_manager_posts as $who_team_manager_post_id ) {
+	wp_delete_post( $who_team_manager_post_id, true );
 }
