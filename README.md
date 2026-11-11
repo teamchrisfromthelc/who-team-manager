@@ -114,6 +114,27 @@ export WP_TESTS_DIR=/path/to/wordpress-tests-lib
 composer test
 ```
 
+### Building the Plugin ZIP
+
+```bash
+npm run plugin-zip    # Builds assets and writes dist/who-team-manager.zip
+npm run version:check # Confirms every version string matches
+```
+
+The ZIP contains a single `who-team-manager/` folder and installs through **Plugins > Add New > Upload Plugin**.
+
+### Releasing
+
+The `Release` workflow builds the ZIP, installs it into WordPress 6.0 (PHP 7.4) and the latest WordPress (PHP 8.3), then publishes it. It runs on every pull request to `main` without publishing.
+
+1. Bump the version in `who-team-manager.php` (header and `WHO_TEAM_MANAGER_VERSION`), `readme.txt` (`Stable tag`), `package.json` and `src/block.json`.
+2. Add a `= X.Y.Z =` entry under `== Changelog ==` in `readme.txt`. It becomes the release notes.
+3. Merge to `main`, then either:
+   - push a tag: `git tag vX.Y.Z && git push origin vX.Y.Z`, or
+   - run **Actions > Release > Run workflow** on `main` with **publish** ticked. This creates the tag for you.
+
+The workflow fails if any version string disagrees, if the tag doesn't match the plugin header, or if the tag already exists. Installed sites pick up the release through the built-in GitHub updater.
+
 ### Architecture
 
 ```

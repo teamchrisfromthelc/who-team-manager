@@ -50,6 +50,3 @@ phpstan-baseline.neon
 # Debug
 debug.log
 error_log
-
-# npm
-package-lock.json
