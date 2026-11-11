@@ -1,26 +1,71 @@
 name: Release
 
+# Builds the installable plugin ZIP, installs it into a real WordPress site to
+# prove it works, and publishes it as a GitHub release.
+#
+# - Pull requests to main: build and smoke test only.
+# - Push a tag vX.Y.Z: build, smoke test, publish release vX.Y.Z.
+# - Manual run (Actions > Release > Run workflow): build and smoke test the
+#   chosen branch. Tick "publish" on main to tag and release the version in the
+#   plugin header.
+
 on:
-  release:
-    types: [ published ]
+  pull_request:
+    branches: [ main ]
+  push:
+    tags: [ 'v[0-9]+.[0-9]+.[0-9]+' ]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Tag and publish a GitHub release for the plugin header version (main only)'
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PLUGIN_SLUG: who-team-manager
 
 jobs:
-  build-and-upload:
-    name: Build release zip
+  build:
+    name: Build ZIP
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      artifact: ${{ steps.version.outputs.artifact }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          tools: composer
-          coverage: none
+      - name: Check version
+        id: version
+        env:
+          PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="$(bin/check-version.sh "${GITHUB_REF_NAME#v}")"
+          else
+            version="$(bin/check-version.sh)"
+          fi
+
+          if [[ "$PUBLISH" == "true" ]]; then
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              echo "::error::Publishing is only allowed from main, not $GITHUB_REF."
+              exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+              echo "::error::Tag v$version already exists. Bump the version before publishing."
+              exit 1
+            fi
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "artifact=$PLUGIN_SLUG-$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,40 +73,188 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install PHP production dependencies
-        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-progress
-
       - name: Install Node dependencies
         run: npm ci
 
       - name: Build block assets
         run: npm run build
 
-      - name: Build release zip
-        run: |
-          mkdir who-team-manager
-          rsync -a \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='tests' \
-            --exclude='src' \
-            --exclude='node_modules' \
-            --exclude='phpunit.xml.dist' \
-            --exclude='phpstan.neon.dist' \
-            --exclude='phpstan-bootstrap.php' \
-            --exclude='phpcs.xml.dist' \
-            --exclude='rector.php' \
-            --exclude='composer.json' \
-            --exclude='composer.lock' \
-            --exclude='package.json' \
-            --exclude='package-lock.json' \
-            --exclude='.gitignore' \
-            --exclude='.eslintrc.json' \
-            --exclude='vendor/bin' \
-            ./ who-team-manager/
-          zip -r who-team-manager.zip who-team-manager/
+      - name: Build plugin ZIP
+        run: bin/build-zip.sh
 
-      - name: Upload release asset
-        run: gh release upload "${{ github.event.release.tag_name }}" who-team-manager.zip --clobber
+      - name: Write checksum and release notes
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          (cd dist && sha256sum "$PLUGIN_SLUG.zip" > "$PLUGIN_SLUG.zip.sha256")
+
+          # Copy this version's entry from the readme.txt changelog.
+          awk -v heading="= $VERSION =" '
+            $0 == heading { found = 1; next }
+            found && /^(=|==) / { exit }
+            found { print }
+          ' readme.txt > dist/release-notes.md
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact }}
+          path: |
+            dist/${{ env.PLUGIN_SLUG }}.zip
+            dist/${{ env.PLUGIN_SLUG }}.zip.sha256
+            dist/release-notes.md
+          if-no-files-found: error
+
+  smoke-test:
+    name: Install test (WP ${{ matrix.wp }}, PHP ${{ matrix.php }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported pair from the plugin header.
+          - wp: '6.0'
+            php: '7.4'
+          - wp: 'latest'
+            php: '8.3'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      WP_CLI_ALLOW_ROOT: '1'
+      VERSION: ${{ needs.build.outputs.version }}
+    defaults:
+      run:
+        working-directory: wp
+    steps:
+      - name: Download ZIP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: dist
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli
+          tools: wp-cli
+          coverage: none
+
+      - name: Install WordPress
+        working-directory: .
+        run: |
+          mkdir wp
+          cd wp
+          wp core download --version="${{ matrix.wp }}" --quiet
+          wp config create --dbname=wordpress --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp config set WP_DEBUG true --raw
+          wp config set WP_DEBUG_LOG "'$PWD/debug.log'" --raw
+          wp config set WP_DEBUG_DISPLAY false --raw
+          wp core install --url=http://localhost --title=Smoke --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
+          wp core version --extra
+
+      - name: Install and activate plugin from ZIP
+        run: |
+          wp plugin install "$GITHUB_WORKSPACE/dist/$PLUGIN_SLUG.zip" --activate
+          wp plugin is-active "$PLUGIN_SLUG"
+          test -f "wp-content/plugins/$PLUGIN_SLUG/$PLUGIN_SLUG.php"
+
+      - name: Check installed version
+        run: |
+          installed="$(wp plugin get "$PLUGIN_SLUG" --field=version)"
+          echo "Installed version: $installed"
+          test "$installed" = "$VERSION"
+
+      - name: Check post type and block registration
+        run: |
+          wp eval '
+            if ( ! post_type_exists( \WhoTeamManager\Team_Member_CPT::POST_TYPE ) ) {
+              WP_CLI::error( "Team member post type is not registered." );
+            }
+            if ( ! WP_Block_Type_Registry::get_instance()->is_registered( "who-team-manager/team-grid" ) ) {
+              WP_CLI::error( "Team Grid block is not registered." );
+            }
+            WP_CLI::success( "Post type and block are registered." );
+          '
+
+      - name: Render the Team Grid block
+        run: |
+          post_type="$(wp eval 'echo \WhoTeamManager\Team_Member_CPT::POST_TYPE;')"
+          wp post create --post_type="$post_type" --post_title="Smoke Test Member" --post_status=publish
+          output="$(wp eval 'echo do_blocks( "<!-- wp:who-team-manager/team-grid /-->" );')"
+          echo "$output"
+          grep -q "Smoke Test Member" <<< "$output"
+
+      - name: Uninstall plugin and check cleanup
+        run: |
+          wp plugin uninstall "$PLUGIN_SLUG" --deactivate
+          test ! -e "wp-content/plugins/$PLUGIN_SLUG"
+          remaining="$(wp post list --post_type=who_team_member --post_status=any --format=count)"
+          echo "Team member posts left after uninstall: $remaining"
+          test "$remaining" = "0"
+
+      - name: Fail on PHP notices from the plugin
+        if: always()
+        working-directory: .
+        run: |
+          if [[ -f wp/debug.log ]]; then
+            cat wp/debug.log
+            if grep -q "plugins/$PLUGIN_SLUG/" wp/debug.log; then
+              echo "::error::The plugin logged PHP errors, warnings or notices."
+              exit 1
+            fi
+          fi
+
+  release:
+    name: Publish release
+    needs: [ build, smoke-test ]
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: v${{ needs.build.outputs.version }}
+    steps:
+      - name: Download ZIP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: dist
+
+      - name: Create or update GitHub release
+        run: |
+          assets=( "dist/$PLUGIN_SLUG.zip" "dist/$PLUGIN_SLUG.zip.sha256" )
+
+          # A release made by hand in the GitHub UI already exists when its tag
+          # push reaches this job. Attach the assets to it instead of failing.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber
+            exit 0
+          fi
+
+          args=(
+            --title "WHO Team Manager $TAG"
+            --notes-file dist/release-notes.md
+            --generate-notes
+          )
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            args+=( --verify-tag )
+          else
+            args+=( --target "$GITHUB_SHA" )
+          fi
+
+          gh release create "$TAG" "${assets[@]}" "${args[@]}"
