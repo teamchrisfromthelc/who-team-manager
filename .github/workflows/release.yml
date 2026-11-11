@@ -239,10 +239,23 @@ jobs:
         run: |
           assets=( "dist/$PLUGIN_SLUG.zip" "dist/$PLUGIN_SLUG.zip.sha256" )
 
-          # A release made by hand in the GitHub UI already exists when its tag
-          # push reaches this job. Attach the assets to it instead of failing.
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          # The release can already exist in two cases:
+          # - It was made by hand in the GitHub UI, which pushed the tag that
+          #   started this run.
+          # - An earlier run was interrupted. `gh release create` makes a
+          #   draft, uploads assets, then publishes, so it can leave a draft.
+          # Attach the assets, then publish it if it is still a draft.
+          if is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
             gh release upload "$TAG" "${assets[@]}" --clobber
+            if [[ "$is_draft" == "true" ]]; then
+              publish=( --draft=false )
+              # A manual run creates the tag on publish. Point it at this
+              # run's commit, not the commit the abandoned draft recorded.
+              if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+                publish+=( --target "$GITHUB_SHA" )
+              fi
+              gh release edit "$TAG" "${publish[@]}"
+            fi
             exit 0
           fi
 
