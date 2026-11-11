@@ -222,6 +222,12 @@ jobs:
     needs: [ build, smoke-test ]
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
     runs-on: ubuntu-latest
+    # A manual run on main and a tag push for the same version use different
+    # refs, so the workflow-level group doesn't serialize them. Lock on the
+    # version so only one run writes a given release at a time.
+    concurrency:
+      group: publish-v${{ needs.build.outputs.version }}
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
@@ -238,6 +244,19 @@ jobs:
       - name: Create or update GitHub release
         run: |
           assets=( "dist/$PLUGIN_SLUG.zip" "dist/$PLUGIN_SLUG.zip.sha256" )
+
+          # Never attach this commit's ZIP to a tag on another commit. That
+          # happens when a competing run published this version first, or the
+          # tag was moved after this run started. Same-commit retries pass.
+          tag_count="$(gh api "repos/$GH_REPO/git/matching-refs/tags/$TAG" \
+            --jq "[.[] | select(.ref == \"refs/tags/$TAG\")] | length")"
+          if [[ "$tag_count" != "0" ]]; then
+            tag_sha="$(gh api "repos/$GH_REPO/commits/refs/tags/$TAG" --jq .sha)"
+            if [[ "$tag_sha" != "$GITHUB_SHA" ]]; then
+              echo "::error::$TAG points at $tag_sha, but this run built $GITHUB_SHA. Bump the version or delete the tag."
+              exit 1
+            fi
+          fi
 
           # The release can already exist in two cases:
           # - It was made by hand in the GitHub UI, which pushed the tag that
