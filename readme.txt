@@ -4,7 +4,7 @@ Tags: team, members, grid, staff, custom post type
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -49,6 +49,10 @@ No. Team members are only displayed via the Team Grid block. They have no indivi
 2. Frontend grid display
 
 == Changelog ==
+
+= 1.0.1 =
+* Release ZIPs are now built and tested automatically before each release
+* No changes to plugin behavior
 
 = 1.0.0 =
 * Initial release
