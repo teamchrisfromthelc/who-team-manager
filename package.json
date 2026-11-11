@@ -1,6 +1,6 @@
 {
 	"name": "who-team-manager",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "A simple custom post type for team members with a configurable grid block.",
 	"author": "Christopher Smith",
 	"license": "MIT",

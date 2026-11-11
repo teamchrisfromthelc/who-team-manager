@@ -3,7 +3,7 @@
  * Plugin Name: WHO Team Manager
  * Plugin URI:  https://github.com/chrisfromthelc/who-team-manager
  * Description: A simple custom post type for team members with a configurable grid block.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      Christopher Smith
  * Author URI:  https://chriswsmith.info
  * License:     MIT
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WHO_TEAM_MANAGER_VERSION', '1.0.0' );
+define( 'WHO_TEAM_MANAGER_VERSION', '1.0.1' );
 define( 'WHO_TEAM_MANAGER_FILE', __FILE__ );
 define( 'WHO_TEAM_MANAGER_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WHO_TEAM_MANAGER_URL', plugin_dir_url( __FILE__ ) );
